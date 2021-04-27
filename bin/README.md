@@ -4,6 +4,7 @@ Le script subgXX (XX=16 actuellement) permet de lancer des calculs avec gaussian
 Il utilise :
  - le fichier com
  - le fichier .fchk.gz s'il existe
+ - 
 À la fin du calcul, on obtient dans le répertoire de travail :
  - le fichier .log
  - le fichier .fchk.gz mis à jour
