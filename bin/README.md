@@ -4,11 +4,11 @@ Le script subgXX (XX=16 actuellement) permet de lancer des calculs avec gaussian
 Il utilise :
  - le fichier com
  - le fichier .fchk.gz s'il existe
- - 
+
 À la fin du calcul, on obtient dans le répertoire de travail :
  - le fichier .log
  - le fichier .fchk.gz mis à jour
- - 
+
 ### Pourquoi pas le fichier .chk?
 Les fichiers .chk générés par gaussian sont très gros. Les fichiers formaté (.fchk) et compressés (.gz) prennent moins de place sur le disque.
 
@@ -33,3 +33,6 @@ formchk molecule.chk
 gzip molecule.fchk
 cp molecule.fchk.gz ${repertoire de travail}
 ```
+
+### OK et alors?
+Vous aurez noté que seul le fichier .fchk.gz est rapatrié vers votre répertoire de travail: si votre calcul gaussian génère d'autres fichiers il faudra s'occuper de les récupérer par vous même.
