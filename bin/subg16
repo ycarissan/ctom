@@ -1,0 +1,143 @@
+#!/bin/sh
+# Script to run g16
+SBATCH="$(which sbatch)"
+
+case $# in
+      0) echo "Usage: subg16 job_name [queue]"
+         exit 
+         ;;
+      1) export JOBNAME=`echo $1 | sed "s/\.com//"`
+#         export QUEUE="viteuf"
+         LINE="##$ -l hostname=brusel"
+         ;;
+      2) export JOBNAME=`echo $1 | sed "s/\.com//"`
+         export QUEUE=$2
+         LINE=" -l hostname=${QUEUE}"
+         ;;
+      *) echo 'Too many parameters !!!'
+         exit 
+         ;;
+esac
+
+export HOMEDIR=`pwd`
+if [ ! -s ${HOMEDIR}/${JOBNAME}.com ]
+  then echo 'No such file: '${JOBNAME}'.com !!!'
+       exit
+fi
+
+nproc=`grep -i "^%nproc" ${JOBNAME}.com |head -1|cut -d= -f2`
+nproc=`expr "${nproc}" \| 1`
+
+echo "  This job will run on "${nproc}" cpus"
+
+MEM=`grep -i "^%mem" ${JOBNAME}.com |head -1|cut -d= -f2|tr "A-Z" "a-z"`
+#yannick
+MEM=`echo ${MEM}|sed s/[gG]/000m/`
+#yannick
+MEM=`expr "${MEM}" \| "6mw"`
+nmem=`echo ${MEM}|sed -e s/[a-z]*$//`
+#yannick
+tmem=`echo ${MEM}|sed -e s/^[0-9]*//`
+is_word=`echo ${tmem}|grep -e w -e W`
+if [ ${is_word} ]
+then 
+#yannick taille des executables ?
+  nmem=$(( $nmem + 40  ))
+  nmem=`expr ${nmem} \* 8`;
+  tmem=`echo ${tmem}|tr "w" " "|tr "m" "M"`;
+#yanncik
+else
+#yannick taille des executables ?
+  nmem=$(( $nmem + 2000  ))
+  tmem="M"
+#yannick
+fi
+MEM="${nmem}${tmem}"
+echo "  This job requires "${MEM}" of memory"
+
+radical=`grep -i "%chk" ${JOBNAME}.com |head -1|cut -d= -f2|cut -d. -f1`
+echo "radical : $radical"
+is_slash=`echo ${chknam} | grep '\/'`
+if [ ! ${is_slash} ]
+#then radical=${HOMEDIR}"/"${radical}
+then radical=${radical}
+fi
+chknam=${radical}".chk"
+chknamgz=${chknam}".gz"
+fchknam=${radical}".fchk"
+fchknamgz=${fchknam}".gz"
+
+echo $chknam
+echo $chknamgz
+echo $fchknam
+echo $fchknamgz
+
+cat > ${HOMEDIR}/${JOBNAME}.job << END
+#!/bin/sh
+# 
+#SBATCH --job-name=$JOBNAME
+#SBATCH --cpus-per-task=${nproc}
+#SBATCH --mem=${nmem}
+#SBATCH --constraint=centos8
+#***************************
+#DO NOT MODIFY THESE OPTIONS
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#***************************
+
+# . /share/programs/bin/functions_jobs.sh
+
+echo "Variables"
+echo "Job Name          : \${SLURM_JOB_NAME}"
+echo "Account           : \${SLURM_JOB_ACCOUNT}"
+echo "Submitted  from   : \${SLURM_SUBMIT_HOST}"
+echo "WorkDir           : \${SLURM_SUBMIT_DIR}"
+echo "TMPDIR            : \${TMPDIR}"
+echo "I am in           : \${PWD}"
+echo "  CORES           : \${SLURM_CPUS_PER_TASK}"
+
+#synchronize the working directory and the scratch
+cp \${SLURM_SUBMIT_DIR}/${JOBNAME}.com \${SLURM_SUBMIT_DIR}/${fchknamgz} \${TMPDIR}/
+cd \${TMPDIR}
+echo " I am in \${PWD} "
+echo "Espace disque : "
+df -h
+echo "On Node = "\`hostname\`
+source /usr/share/Modules/init/sh
+g16root="/share/programs/G16_SLATER"
+GAUSS_SCRDIR=\$TMPDIR
+export g16root GAUSS_SCRDIR 
+. \$g16root/g16/bsd/g16.profile
+
+if [ -s ${fchknamgz} ] ; then
+   echo Formatted compressed chkfile found : ${fchknamgz}
+   echo Creating a chkfile ...
+     gzip -d ${fchknamgz}
+     unfchk ${fchknam}
+   echo ${chknam} created
+fi
+
+if [ -s ${JOBNAME}.log ] ; then
+   echo I copy ${JOBNAME}.log as ${JOBNAME}.log~
+   mv ${JOBNAME}.log ${JOBNAME}.log~
+fi
+
+echo ${fchknamgz}
+g16 < ${JOBNAME}.com > \${SLURM_SUBMIT_DIR}/${JOBNAME}.log
+
+if [ -s ${chknam} ] ; then
+   echo chkfile found
+   echo Creating a compressed formatted chkfile ...
+   formchk ${chknam}
+   gzip ${fchknam}
+   rm ${chknam}
+   echo ${chknam} removed
+   echo ${fchknamgz} created
+fi
+
+cp \${TMPDIR}/${fchknamgz} \${SLURM_SUBMIT_DIR}/
+
+END
+chmod 0775 ${HOMEDIR}/${JOBNAME}.job
+${SBATCH} ${HOMEDIR}/${JOBNAME}.job
+
